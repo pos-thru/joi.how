@@ -85,6 +85,16 @@ export class JoiResElement extends LitElement {
     this.dispatchEvent(new CustomEvent('loadedmetadata', { detail: e }));
   };
 
+  private onEnded = (e: Event) => {
+  this.dispatchEvent(
+    new CustomEvent('ended', {
+      detail: e,
+      bubbles: true,
+      composed: true,
+    })
+  );
+};
+
   render() {
     if (!this.resolvedSrc) {
       return html`<div class="placeholder"></div>`;
@@ -103,6 +113,7 @@ export class JoiResElement extends LitElement {
           }
           ?playsinline=${this.playsinline}
           @loadedmetadata=${this.onVideoMeta}
+          @ended=${this.onEnded}
           @error=${this.onError}
         ></video>
       `;
@@ -130,5 +141,6 @@ export const JoiRes = createComponent({
     onLoad: 'load' as EventName<CustomEvent<Event>>,
     onError: 'error' as EventName<CustomEvent<Event>>,
     onLoadedmetadata: 'loadedmetadata' as EventName<CustomEvent<Event>>,
+    onEnded: 'ended' as EventName<CustomEvent<Event>>,
   },
 });

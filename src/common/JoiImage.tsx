@@ -64,6 +64,7 @@ export class JoiImageElement extends LitElement {
   @property({ type: String, reflect: true }) accessor kind: 'image' | 'video' =
     'image';
   @property({ type: Boolean, reflect: true }) accessor playable = false;
+  @property({ type: Boolean, reflect: true }) accessor loop = false;
   @property({ type: Boolean, reflect: true }) accessor loud = false;
   @property({ type: Boolean, reflect: true, attribute: 'random-start' })
   accessor randomStart = false;
@@ -159,6 +160,16 @@ export class JoiImageElement extends LitElement {
     this.dispatchEvent(new CustomEvent('fullready'));
   };
 
+  private onVideoEnded = (e: Event) => {
+    this.dispatchEvent(
+      new CustomEvent('ended', {
+        detail: e,
+        bubbles: true,
+        composed: true,
+      })
+    );
+  };
+
   render() {
     const wantsVideo = this.kind === 'video' && this.playable && !!this.full;
     const showThumb = !!this.thumb && !this.previewReady && !this.fullReady;
@@ -202,7 +213,7 @@ export class JoiImageElement extends LitElement {
                   src=${this.full}
                   kind=${wantsVideo ? 'video' : 'image'}
                   ?autoplay=${wantsVideo}
-                  ?loop=${wantsVideo}
+                  ?loop=${wantsVideo && this.loop}
                   ?muted=${wantsVideo && !this.loud}
                   ?playsinline=${wantsVideo}
                   ?random-start=${wantsVideo && this.randomStart}
@@ -210,6 +221,7 @@ export class JoiImageElement extends LitElement {
                   fetchpriority="high"
                   @load=${this.onFullImgLoad}
                   @loadedmetadata=${this.onFullVideoMeta}
+                  @ended=${this.onVideoEnded}
                 ></joi-res>`
               : null}
           </div>`
@@ -229,5 +241,7 @@ export const JoiImage = createComponent({
     onThumbready: 'thumbready' as EventName<Event>,
     onPreviewready: 'previewready' as EventName<Event>,
     onFullready: 'fullready' as EventName<Event>,
+    onLoadedmetadata: 'loadedmetadata' as EventName<CustomEvent<Event>>,
+    onEnded: 'ended' as EventName<CustomEvent<Event>>,
   },
 });
