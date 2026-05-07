@@ -99,7 +99,18 @@ export class JoiImageElement extends LitElement {
     }
   }
 
+  private stopAllVideos() {
+    const videos = this.shadowRoot?.querySelectorAll('video') ?? [];
+    for (const video of videos) {
+      video.pause();
+      video.currentTime = 0;
+      video.src = '';
+      video.load();
+    }
+  }
+
   disconnectedCallback() {
+    this.stopAllVideos();
     this.io?.disconnect();
     super.disconnectedCallback();
   }
@@ -112,6 +123,7 @@ export class JoiImageElement extends LitElement {
       changed.has('kind') ||
       changed.has('playable')
     ) {
+      this.stopAllVideos();
       this.thumbReady = this.previewReady = this.fullReady = false;
     }
     if (changed.has('objectFit'))

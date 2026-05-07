@@ -42,8 +42,24 @@ export class JoiResElement extends LitElement {
   @state() accessor isLoading = false;
   @state() accessor hasError = false;
 
+  private stopVideo() {
+    const video = this.shadowRoot?.querySelector('video') as HTMLVideoElement;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+      video.src = '';
+      video.load();
+    }
+  }
+
+  disconnectedCallback() {
+    this.stopVideo();
+    super.disconnectedCallback();
+  }
+
   updated(changed: Map<string, unknown>) {
-    if (changed.has('src')) {
+    if (changed.has('src') || changed.has('kind')) {
+      this.stopVideo();
       this.resolveUrl();
     }
   }
@@ -94,6 +110,7 @@ export class JoiResElement extends LitElement {
       return html`
         <video
           src=${this.resolvedSrc}
+          preload="auto"
           ?autoplay=${this.autoplay}
           ?loop=${this.loop}
           ?muted=${this.muted}
