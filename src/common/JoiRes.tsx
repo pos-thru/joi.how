@@ -77,11 +77,31 @@ export class JoiResElement extends LitElement {
     this.dispatchEvent(new CustomEvent('error', { detail: e }));
   };
 
-  private onVideoMeta = (e: Event) => {
+  private onVideoMeta = async (e: Event) => {
     const v = e.currentTarget as HTMLVideoElement;
     if (this.randomStart && v.duration && isFinite(v.duration)) {
       v.currentTime = Math.random() * v.duration;
     }
+
+    // The video may have auto-started with muted=true (JoiRes default) before
+    // the parent had a chance to push muted=false via property binding.
+    // Explicitly enforce the correct muted state here, after metadata is ready.
+    v.muted = this.muted;
+
+    if (this.autoplay && v.paused) {
+      // Autoplay was blocked (browser policy). Try to play now — by this point
+      // the user has likely interacted with the page (e.g. clicked Start).
+      try {
+        await v.play();
+      } catch {
+        // Still blocked (no user gesture yet). Fall back to muted so at least
+        // the video plays visually. Audio will come in on the next video after
+        // the user interacts with anything.
+        v.muted = true;
+        v.play().catch(() => {});
+      }
+    }
+
     this.dispatchEvent(new CustomEvent('loadedmetadata', { detail: e }));
   };
 
