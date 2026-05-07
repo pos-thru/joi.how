@@ -1,53 +1,90 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { ImageItem, ImageSize, ImageType } from '../types';
 import { useLocalImages } from '../local/LocalProvider';
 
-interface PreloadItem {
-  src: string;
-  type: 'image' | 'video';
+export interface ImagePreloadEntry {
+  item: ImageItem;
+  size: ImageSize;
 }
 
 const usePreloadItems = () => {
   const { resolveUrl } = useLocalImages();
 
-  return async (items: PreloadItem[]) => {
-    for (const item of items) {
-      switch (item.type) {
-        case 'image': {
-          const img = new Image();
-          img.src = await resolveUrl(item.src);
-          break;
+  // useCallback so the function reference is stable across renders,
+  // preventing useImagePreloader's effect from firing on every render.
+  return useCallback(
+    async (
+      entries: ImagePreloadEntry[],
+      maxItems: number,
+      signal: { cancelled: boolean }
+    ) => {
+      // Preload all items in parallel, not sequentially.
+      const tasks = entries.slice(0, maxItems).map(async entry => {
+        if (signal.cancelled) return;
+
+        try {
+          let src: string;
+          let type: 'image' | 'video';
+
+          if (entry.size === ImageSize.thumbnail) {
+            src = entry.item.thumbnail;
+            type = 'image';
+          } else if (entry.size === ImageSize.preview) {
+            src = entry.item.preview;
+            type = 'image';
+          } else {
+            src = entry.item.full;
+            type = entry.item.type === ImageType.video ? 'video' : 'image';
+          }
+
+          const url = await resolveUrl(src);
+          if (signal.cancelled) return;
+
+          if (type === 'image') {
+            await new Promise<void>(resolve => {
+              const img = new Image();
+              // Already in cache
+              if (img.complete) {
+                resolve();
+                return;
+              }
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+              img.src = url;
+            });
+          } else {
+            // For videos: kick off browser buffering and move on immediately.
+            // Waiting for loadeddata would block the parallel queue for seconds.
+            // The browser will buffer the video in the background.
+            const video = document.createElement('video');
+            video.preload = 'auto';
+            video.muted = true;
+            video.playsInline = true;
+            video.src = url;
+            video.load();
+          }
+        } catch {
+          // Ignore preload failures and keep rendering flow intact
         }
-        case 'video': {
-          const video = document.createElement('video');
-          video.src = await resolveUrl(item.src);
-          break;
-        }
-      }
-    }
-  };
+      });
+
+      await Promise.allSettled(tasks);
+    },
+    [resolveUrl]
+  );
 };
 
-export const useImagePreloader = (imageItems: ImageItem[], size: ImageSize) => {
+export const useImagePreloader = (
+  entries: ImagePreloadEntry[],
+  maxItems = 4
+) => {
   const preloadItems = usePreloadItems();
 
   useEffect(() => {
-    const items: PreloadItem[] = [];
-
-    imageItems.forEach(item => {
-      if (size === ImageSize.thumbnail) {
-        items.push({ src: item.thumbnail, type: 'image' });
-      } else if (size === ImageSize.preview) {
-        items.push({ src: item.preview, type: 'image' });
-      } else if (size === ImageSize.full) {
-        if (item.type === ImageType.video) {
-          items.push({ src: item.full, type: 'video' });
-        } else {
-          items.push({ src: item.full, type: 'image' });
-        }
-      }
-    });
-
-    preloadItems(items);
-  }, [imageItems, preloadItems, size]);
+    const signal = { cancelled: false };
+    void preloadItems(entries, maxItems, signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [entries, maxItems, preloadItems]);
 };

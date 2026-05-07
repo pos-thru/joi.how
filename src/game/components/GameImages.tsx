@@ -3,9 +3,9 @@ import { useImages, useSetting } from '../../settings';
 import { useGameValue } from '../GameProvider';
 import { motion } from 'framer-motion';
 import { JoiImage } from '../../common';
-import { useAutoRef, useImagePreloader, useLooping } from '../../utils';
-import { ImageSize, ImageType } from '../../types';
-import { useCallback, useMemo, useEffect } from 'react';
+import { useAutoRef, useImagePreloader } from '../../utils';
+import { ImageItem, ImageSize, ImageType } from '../../types';
+import { useCallback, useMemo, useEffect, useState } from 'react';
 
 const StyledGameImages = styled.div`
   position: absolute;
@@ -54,7 +54,19 @@ export const GameImages = () => {
   const [imageDuration] = useSetting('imageDuration');
   const [intenseImages] = useSetting('intenseImages');
 
-  useImagePreloader(nextImages, highRes ? ImageSize.full : ImageSize.preview);
+  const preloadEntries = useMemo(
+    () =>
+      nextImages.slice(0, 3).map(item => ({
+        item,
+        size:
+          item.type === ImageType.video || highRes
+            ? ImageSize.full
+            : ImageSize.preview,
+      })),
+    [nextImages, highRes]
+  );
+
+  useImagePreloader(preloadEntries, 3);
 
   const imagesTracker = useAutoRef({
     images,
