@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { JoiImage } from '../../common';
 import { useAutoRef, useImagePreloader, useLooping } from '../../utils';
 import { ImageSize, ImageType } from '../../types';
-import { useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useMemo, useEffect, useState } from 'react';
 
 const StyledGameImages = styled.div`
   position: absolute;
@@ -53,6 +53,7 @@ export const GameImages = () => {
   const [highRes] = useSetting('highRes');
   const [imageDuration] = useSetting('imageDuration');
   const [intenseImages] = useSetting('intenseImages');
+  const [videoDuration, setVideoDuration] = useState<number | undefined>(undefined);
 
   useImagePreloader(nextImages, highRes ? ImageSize.full : ImageSize.preview);
 
@@ -101,7 +102,38 @@ export const GameImages = () => {
 
   useEffect(() => switchImage(), [switchImage]);
 
-  useLooping(switchImage, switchDuration);
+  useEffect(() => {
+    setVideoDuration(undefined);
+  }, [currentImage?.id]);
+
+  useEffect(() => {
+    if (!currentImage) return;
+
+    if (currentImage.type === ImageType.video) {
+      if (videoDuration !== undefined) {
+        return;
+      }
+      const timer = window.setTimeout(switchImage, Math.max(switchDuration, 10000));
+      return () => window.clearTimeout(timer);
+    }
+
+    const timer = window.setTimeout(switchImage, switchDuration);
+    return () => window.clearTimeout(timer);
+  }, [currentImage, switchImage, switchDuration, videoDuration]);
+
+  const onVideoLoadedMetadata = useCallback((event: unknown) => {
+    const e = event as CustomEvent<Event>;
+    const detail = e?.detail as Event | undefined;
+    const target = detail?.target as HTMLVideoElement | null;
+    const duration = target?.duration;
+    if (typeof duration === 'number' && isFinite(duration)) {
+      setVideoDuration(duration);
+    }
+  }, []);
+
+  const onVideoEnded = useCallback(() => {
+    switchImage();
+  }, [switchImage]);
 
   return (
     <StyledGameImages>
@@ -136,6 +168,8 @@ export const GameImages = () => {
               loud={videoSound}
               randomStart={true}
               objectFit='contain'
+              onLoadedmetadata={onVideoLoadedMetadata}
+              onEnded={onVideoEnded}
             />
           </StyledForegroundImage>
         </>
